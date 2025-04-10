@@ -1,0 +1,14 @@
+{
+	"autodeskProduct":	"Fusion",
+	"type":	"addin",
+	"id":	"82b526e5-34cd-4d54-8d5e-10d24c8cbb4a",
+	"author":	"MaestroFusion360",
+	"description":	{
+		"":	"Alternative to standard Fusion 360 post-processing and removal of Personal license restrictions"
+	},
+	"version":	"1.0.0.0",
+	"runOnStartup":	false,
+	"supportedOS":	"windows",
+	"editEnabled":	true,
+	"iconFilename":	"icon.svg"
+}
