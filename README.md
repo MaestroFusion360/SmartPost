@@ -155,7 +155,7 @@ Planned improvements for future releases:
 
 **Community contributions welcome!** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
-**Found a bug?** [Open an Issue](https://github.com/SmartPost/issues)
+**Found a bug?** [Open an Issue](https://github.com/MaestroFusion360/SmartPost/issues)
 
 ---
 
