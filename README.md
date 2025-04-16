@@ -18,12 +18,18 @@
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Overview](#overview)
 - [Key Features](#key-features)
-- [Technical Constraints](#technical-constraints)
-- [Installation & Usage](#installation--usage)
+  - [Notes:](#notes)
+- [Technical Constraints\*\*](#technical-constraints)
+- [Installation \& Usage](#installation--usage)
+  - [Configuration](#configuration)
 - [Roadmap](#roadmap)
-- [License](#license--disclaimer)
+    - [**Q3 2025**](#q3-2025)
+    - [**Q1 2026**](#q1-2026)
+- [License \& Disclaimer](#license--disclaimer)
+  - [Contact Me](#contact-me)
 
 ---
 
@@ -110,21 +116,21 @@
 </details>
 
 - ### Setup
-	1. Download latest `.bundle` release. 
-	2. Extract the archive.
-	3. Copy the add-on folder to the following directory:  
-	**`%appdata%\Autodesk\Autodesk Fusion 360\API\AddIns`**.
-	4. Open **Fusion 360**.
-	5. Press **`Shift + S`** or go to **Tools → Scripts and Add-Ins**.
-	6. In the upper part of the window, click on the **plus** (**`+`**).
-	7. In the Add-Ins dialog, choose `Link an App from Local` to load your add-on directly from a local folder. Navigate to the folder where your add-on is located and select it.
-	8. Select the add-on from the list and click **`Run`**.
-	9. To have the add-on run automatically at startup, check the **`Run on Startup`** box.
+1. Download latest `.zip` release. 
+2. Extract the archive.
+3. Copy the add-on folder to the following directory:  
+**`%appdata%\Autodesk\Autodesk Fusion 360\API\AddIns`**.
+1. Open **Fusion 360**.
+2. Press **`Shift + S`** or go to **Tools → Scripts and Add-Ins**.
+3. In the upper part of the window, click on the **plus** (**`+`**).
+4. In the Add-Ins dialog, choose `Link an App from Local` to load your add-on directly from a local folder. Navigate to the folder where your add-on is located and select it.
+5. Select the add-on from the list and click **`Run`**.
+6. To have the add-on run automatically at startup, check the **`Run on Startup`** box.
 
-	**⚠️ Important:**
-	- **SmartPost** works **only on Windows**.
-	- If the **AddIns** folder doesn't exist, create it manually.
-	- If the add-on doesn't run, try restarting Fusion 360.
+**⚠️ Important:**
+- **SmartPost** works **only on Windows**.
+- If the **AddIns** folder doesn't exist, create it manually.
+- If the add-on doesn't run, try restarting Fusion 360.
 
 ### Configuration
 
