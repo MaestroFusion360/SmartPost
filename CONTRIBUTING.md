@@ -19,11 +19,12 @@ Because of this, many people have to switch to other CAM systems, losing the sim
 
 ---
 
-## Calling All Python/CNC Developers!
+## Calling All Python/CNC Developers
 
 I'm building a tool to help Fusion 360 users stay license-compliant while getting the most from the software. As a solo developer, I could really use your help with:
 
 Key Development Needs:
+
 - Enhancing the `xml.cps` post-processor
 - Improving G-code merging logic
 - UI/UX refinements
@@ -38,6 +39,7 @@ How to Contribute:
 3. No strict rules - just keep changes focused
 
 For Non-Coders:
+
 - Report bugs/suggest features
 - Help test new versions
 - Star & share the project
