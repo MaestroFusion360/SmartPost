@@ -27,8 +27,8 @@
 - [Installation \& Usage](#installation--usage)
   - [Configuration](#configuration)
 - [Roadmap](#roadmap)
-  - [**Q3 2025**](#q3-2025)
-    - [**Q1 2026**](#q1-2026)
+  - [**Q4 2026**](#q4-2026)
+    - [**Q1 2027**](#q1-2027)
 - [License \& Disclaimer](#license--disclaimer)
   - [Contact Me](#contact-me)
 
@@ -155,7 +155,7 @@ SmartPost default settings are in the `config.py` file:
 
 Planned improvements for future releases:
 
-### **Q3 2025**
+### **Q4 2026**
 
 **Postprocessor Enhancements**
 Improve support for the intermediate XML format, including:
@@ -164,7 +164,7 @@ Improve support for the intermediate XML format, including:
 - Drill cycles
 - Manual NC code insertion
 
-#### **Q1 2026**
+#### **Q1 2027**
 
 Extend the list of configurable parameters for the postprocessor
 
