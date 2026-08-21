@@ -48,6 +48,14 @@ properties = {
     type       : "boolean",
     value      : true,
     scope      : "post"
+  },
+  diagnosticSectionType: {
+    title      : "Diagnostic section type",
+    description: "Logs the Section type supplied by Fusion before XML serialization.",
+    group      : "preferences",
+    type       : "boolean",
+    value      : false,
+    scope      : "post"
   }
 };
 
@@ -158,6 +166,10 @@ function attr(name, value) {
 }
 
 function onSection() {
+  if (getProperty("diagnosticSectionType")) {
+    warning("currentSection.type=" + currentSection.getType());
+  }
+
   var u = (unit == IN) ? "inches" : "millimeters";
   var o = toPos(currentSection.workOrigin.x, currentSection.workOrigin.y, currentSection.workOrigin.z);
   var p = [];

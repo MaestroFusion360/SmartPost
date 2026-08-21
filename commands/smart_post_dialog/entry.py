@@ -2,7 +2,6 @@
 
 # pylint: disable=too-many-lines,too-many-locals,too-many-statements,too-many-branches,too-many-arguments,too-many-positional-arguments,global-statement,broad-exception-caught
 
-import glob
 import json
 import logging
 import os
@@ -13,7 +12,6 @@ import time
 
 import adsk.cam
 import adsk.core
-import adsk.fusion
 
 try:
     from ... import config
@@ -21,6 +19,12 @@ try:
 except ImportError:  # Fallback for Fusion's varying sys.path/package loading.
     import config  # type: ignore
     from lib import fusionAddInUtils as futil  # type: ignore
+
+try:
+    from . import fusion_helpers, personal_pipeline
+except ImportError:  # Fallback when Fusion loads the command as a top-level module.
+    import fusion_helpers  # type: ignore
+    import personal_pipeline  # type: ignore
 
 
 # =============================================================================
@@ -1212,180 +1216,24 @@ def batch_post(cam, operations, **post_params):
 
 
 def merge_xml_files(file_paths, output_file):
-    """Merges multiple XML files into one output file"""
-    futil.log("==============================", force_console=True)
-    futil.log("======= Merging files ========", force_console=True)
-    futil.log("==============================", force_console=True)
-
-    # Validate input files
-    for file_path in file_paths:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"XML file not found: {file_path}")
-
-    # Ensure output directory exists
-    output_dir = os.path.dirname(output_file)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    try:
-        # Open output file for writing
-        with open(output_file, "w", encoding="utf-8") as out_file:
-            # Process first file
-            with open(file_paths[0], "r", encoding="utf-8") as first_file:
-                first_content = first_file.read()
-                nc_end = first_content.rfind("</nc>")
-                if nc_end == -1:
-                    raise ValueError(
-                        "First file is not valid NC XML (missing </nc> tag)"
-                    )
-                out_file.write(first_content[:nc_end])
-
-            # Process subsequent files
-            for i, file_path in enumerate(file_paths[1:], 1):
-                with open(file_path, "r", encoding="utf-8") as current_file:
-                    content = current_file.read()
-                    nc_end = content.rfind("</nc>")
-                    if nc_end == -1:
-                        futil.log(
-                            f"Warning: Invalid NC XML in {file_path}, skipping",
-                            force_console=True,
-                        )
-                        continue
-
-                    # Find spindle parameters
-                    spindle_param = max(
-                        content.find("<parameter name='areBothSpindlesGrabbed'"),
-                        content.find("<parameter name=\"areBothSpindlesGrabbed\""),
-                    )
-
-                    # Find tool/section start
-                    section_start = max(content.find("<tool"), content.find("<section"))
-
-                    # Write extracted content
-                    if spindle_param != -1 and section_start != -1:
-                        out_file.write("\n" + content[spindle_param:section_start].strip())
-
-                    if section_start != -1:
-                        out_file.write("\n" + content[section_start:nc_end].strip())
-                    elif spindle_param == -1:
-                        out_file.write("\n" + content[:nc_end].strip())
-
-                    futil.log(f"Merged file {i}: {file_path}", force_console=True)
-
-            out_file.write("\n</nc>")
-
-            # Verify output file
-            if os.path.getsize(output_file) == 0:
-                raise ValueError("Merged file is empty")
-
-            futil.log(
-                f"Successfully merged XML files into: {output_file}",
-                force_console=True,
-            )
-
-        # Cleanup temporary files
-        for file_path in file_paths:
-            try:
-                os.remove(file_path)
-                futil.log(f"Removed temporary file: {file_path}")
-            except OSError as e:
-                futil.log(f"Warning: Could not remove {file_path} - {str(e)}")
-
-        return True
-
-    except Exception as e:
-        show_message(f"XML merge error: {str(e)}")
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        return False
+    """Merge operation-level intermediate XML files."""
+    return personal_pipeline.merge_xml_files(file_paths, output_file, show_message)
 
 
 def process_operations(
     cam, operations, program_name, post_processor, output_folder, unit, post_params
 ):
-    """Process individual operations to numbered XML files with optimized object creation"""
-    output_units = {
-        0: adsk.cam.PostOutputUnitOptions.InchesOutput,
-        1: adsk.cam.PostOutputUnitOptions.MillimetersOutput,
-    }.get(unit)
-    if output_units is None:
-        raise ValueError(f"Unsupported resolved output unit: {unit}")
-
-    # Batch logging initialization
-    futil.log("===============================", force_console=True)
-    futil.log("=== Starting XML generation ===", force_console=True)
-    futil.log("===============================", force_console=True)
-    futil.log(f"Program name: {program_name}")
-    futil.log(f"Output folder: {output_folder}")
-
-    # Normalize output folder once
-    output_folder = normalize_path(output_folder)
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    generated_files = []
-    operations = list(operations)
-
-    # Pre-create value inputs for post properties
-    def create_value_input(value, value_type):
-        value = value_type(value)
-        if value_type is bool:
-            return adsk.core.ValueInput.createByBoolean(value)
-        return adsk.core.ValueInput.createByReal(float(value))
-
-    # Mapping of parameters to their types
-    param_mapping = {
-        "allowHelicalMoves": bool,
-        "highFeedMapping": int,
-        "minimumChordLength": float,
-        "highFeedrate": float,
-        "maximumCircularRadius": float,
-        "minimumCircularRadius": float,
-        "tolerance": float,
-    }
-
-    for i, op in enumerate(operations, 1):
-        op_name = op.name if hasattr(op, "name") else f"Op_{i}"
-        numbered_name = f"{program_name}_{i}"
-        xml_path = normalize_path(os.path.join(output_folder, f"{numbered_name}.xml"))
-
-        try:
-            # Create PostProcessInput
-            post_input = adsk.cam.PostProcessInput.create(
-                numbered_name, post_processor, output_folder, output_units
-            )
-            post_input.isOpenInEditor = False
-
-            # Optimized properties creation
-            post_properties = adsk.core.NamedValues.create()
-            for param, param_type in param_mapping.items():
-                if param in post_params:
-                    value_input = create_value_input(post_params[param], param_type)
-                    post_properties.add(param, value_input)
-
-            post_input.postProperties = post_properties
-
-            # Execute post processing
-            if not cam.postProcess(op, post_input):
-                raise RuntimeError("CAM post processing returned False")
-
-            # Verify result
-            if not os.path.exists(xml_path):
-                raise FileNotFoundError(f"Output file was not created: {xml_path}")
-
-            generated_files.append(xml_path)
-            futil.log(
-                f"Successfully processed: {op_name} -> {xml_path}", force_console=True
-            )
-
-        except Exception as e:
-            error_msg = f"Failed to process {op_name}: {str(e)}"
-            futil.log(error_msg, force_console=True)
-            show_message(error_msg, "Processing XML Error")
-            return None
-
-    return generated_files
-
+    """Post individual operations to numbered intermediate XML files."""
+    return personal_pipeline.process_operations(
+        cam,
+        operations,
+        program_name,
+        post_processor,
+        output_folder,
+        unit,
+        post_params,
+        show_message,
+    )
 
 def generate_gcode(
     post_exe_path,
@@ -1542,167 +1390,29 @@ def generate_gcode(
 # region
 
 
-def find_fusion_post_exe():
-    """Auto-detect post.exe location."""
-    fusion_appdata = os.path.join(os.getenv("LOCALAPPDATA"), r"Autodesk\webdeploy")
-    if not os.path.exists(fusion_appdata):
-        return None
-    possible_paths = glob.glob(
-        os.path.join(fusion_appdata, "*", "*", "Applications", "CAM360", "post.exe")
-    )
-    return max(possible_paths, key=os.path.getmtime) if possible_paths else None
-
-
-def get_setup_number(setup_name, cam):
-    """Finds the index of a setup by name in the CAM environment."""
-    setup_name = setup_name.strip().lower()
-    for i, s in enumerate(cam.setups):
-        if s.name.strip().lower() == setup_name:
-            return i
-    return None
+find_fusion_post_exe = fusion_helpers.find_fusion_post_exe
+get_setup_number = fusion_helpers.get_setup_number
+get_unique_nc_program_name = fusion_helpers.get_unique_nc_program_name
+get_input_value = fusion_helpers.get_input_value
+normalize_path = fusion_helpers.normalize_path
+is_positive_float = fusion_helpers.is_positive_float
+is_non_negative_float = fusion_helpers.is_non_negative_float
 
 
 def get_post(post_path):
-    """Retrieves the post processor configuration from the Fusion 360 library."""
-    home_path = os.path.expanduser("~")
-    post_library_path = os.path.join(
-        home_path, "AppData", "Roaming", "Autodesk", "Fusion 360 CAM", "Posts"
-    )
-    target_post_name = os.path.basename(post_path)
-    target_path = os.path.join(post_library_path, target_post_name)
-
-    if not os.path.exists(target_path):
-        shutil.copy(post_path, post_library_path)
-        show_message(
-            (
-                f"Postprocessor '{target_post_name}' not found in "
-                f"{normalize_path(post_library_path)}. Copying from library..."
-            )
-        )
-
-    cam_manager = adsk.cam.CAMManager.get()
-    library_manager = cam_manager.libraryManager
-    post_library = getattr(library_manager, "postLibrary", None)
-    if post_library is None:
-        raise AttributeError("Post library manager is unavailable")
-
-    locations_type = getattr(
-        adsk.cam,
-        "LibraryLocations",
-        getattr(adsk.cam, "LibraryLocation", None),
-    )
-    if locations_type is None:
-        raise AttributeError("LibraryLocations is unavailable")
-    local_location = getattr(
-        locations_type,
-        "LocalLibraryLocation",
-        getattr(locations_type, "LocalLibrary", None),
-    )
-    user_folder = post_library.urlByLocation(local_location)
-    user_post_library = post_library.childAssetURLs(user_folder)
-
-    for user_post in user_post_library:
-        post_name = user_post.toString()
-        if target_post_name in post_name:
-            url_type = getattr(adsk.core, "URL", None)
-            post_url = url_type.create(post_name) if url_type else post_name
-            return post_library.postConfigurationAtURL(post_url)
-
-    show_message(f"Could not find Postprocessor '{target_post_name}' in user library")
-    return None
-
-
-def get_unique_nc_program_name(cam, base_name="NCProgram"):
-    """Generates a unique NC Program name."""
-    existing_names = []
-    for prog in cam.ncPrograms:
-        existing_names.append(prog.name)
-
-    counter = 1
-    while True:
-        new_name = f"{base_name}{counter}"
-        if new_name not in existing_names:
-            return new_name
-        counter += 1
-
-
-def get_input_value(inputs, input_id, param_name):
-    """
-    Safely retrieves a value from a UI input element
-    with better dropdown handling.
-    """
-    input_item = inputs.itemById(input_id)
-    if not input_item:
-        raise KeyError(f"Input for '{param_name}' (ID: {input_id}) not found")
-
-    if hasattr(input_item, "selectedItem"):
-        return input_item.selectedItem.name
-
-    return input_item.value
+    return fusion_helpers.get_post(post_path, show_message)
 
 
 def is_hobbyist_license():
-    """Check if current license is Personal/Hobbyist."""
-    try:
-        license_info = app.executeTextCommand("Application.LicenseInformation")
-        license_data = json.loads(license_info)
-        is_hobbyist = any(
-            service.get(".isHobbyistLicense", "false") == "true"
-            for service in license_data.values()
-        )
-        futil.log(f"Hobbyist license check result: {is_hobbyist}")
-        return is_hobbyist
-    except (ValueError, TypeError, RuntimeError, AttributeError):
-        return False
+    return fusion_helpers.is_hobbyist_license(app)
 
 
 def get_document_units():
-    """Defines the units of measurement for the document (0=inches, 1=mm)."""
-    try:
-        doc = app.activeDocument
-        design = adsk.fusion.Design.cast(
-            doc.products.itemByProductType("DesignProductType")
-        )
-
-        if not design:
-            return 1  # Default to millimeters if Design not found
-
-        units_manager = design.unitsManager
-        return 0 if units_manager.defaultLengthUnits == "inch" else 1
-
-    except (AttributeError, RuntimeError, TypeError, ValueError):
-        return 1
-
-
-def normalize_path(path):
-    """Normalizes file paths for consistency across operating systems."""
-    normalized = os.path.normpath(os.path.expandvars(path))
-    return normalized.replace("\\", "/")
-
-
-def is_positive_float(value):
-    """Checks if a string represents a positive float value."""
-    try:
-        return float(value) > 0
-    except ValueError:
-        return False
-
-
-def is_non_negative_float(value):
-    """Checks whether a string represents a non-negative floating point number."""
-    try:
-        return float(value) >= 0
-    except ValueError:
-        return False
+    return fusion_helpers.get_document_units(app)
 
 
 def fix_units(value: float):
-    """Corrects parameters that Fusion 360 converts to cm instead of mm."""
-    try:
-        return float(value) / 10  # mm to cm
-    except (ValueError, TypeError):
-        show_message(f"Cannot convert value {value} to a number.")
-        return value
+    return fusion_helpers.fix_units(value, show_message)
 
 
 # endregion

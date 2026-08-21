@@ -7,6 +7,7 @@
 __pycache__/
 *.py[cod]
 .ruff_cache/
+.pytest_cache/
 
 # Local add-in state and atomic-write residue.
 commands/smart_post_dialog/config.json

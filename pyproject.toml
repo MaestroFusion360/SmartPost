@@ -38,3 +38,6 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

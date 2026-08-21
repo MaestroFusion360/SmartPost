@@ -17,9 +17,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   list.
 - Added reproducible PowerShell tests for comparing current and legacy XML
   cycle round-trips through unmodified downstream postprocessors.
+- Added pytest regression coverage for Personal XML post selection, persisted
+  booleans, Fusion output-unit mapping, XML merging, tool metadata, and grouped
+  canned-cycle serialization.
 
 ### Changed
 
+- Split the oversized Smart Post command implementation into focused Fusion
+  helper and Personal XML pipeline modules while preserving its public entry
+  points and behavior.
 - Made `xml_last.cps` the default intermediate postprocessor in Personal mode.
 - Isolated intermediate XML, progress, and log files in a unique directory for
   each SmartPost run.
@@ -49,5 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   boolean options.
 - Fixed cleanup of SmartPost-owned temporary files after successful and failed
   postprocessing without deleting unrelated user files.
+- Fixed merged XML validation incorrectly treating a small buffered output file
+  as empty before the file stream was flushed or closed.
 - Fixed Python lint violations reported by Ruff and Pylint.
 - Fixed Markdown table alignment warnings in the README.

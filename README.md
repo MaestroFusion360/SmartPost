@@ -171,7 +171,6 @@ Improve support for the intermediate XML format, including:
 - 2D turning operations
 - Manual NC code insertion
 
-
 #### **Q1 2027**
 
 Extend the list of configurable parameters for the postprocessor

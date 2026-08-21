@@ -6,7 +6,7 @@
 	"description":	{
 		"":	"Alternative to standard Fusion 360 post-processing and removal of Personal license restrictions"
 	},
-	"version":	"1.1.0.0",
+	"version":	"1.2.0.0",
 	"runOnStartup":	false,
 	"supportedOS":	"windows",
 	"editEnabled":	true,
