@@ -35,15 +35,6 @@ def test_source_section_type_is_logged_without_inferring_from_strategy():
     assert "operation:isTurningStrategy" not in on_section
 
 
-def test_source_section_type_is_recorded_without_inferring_from_strategy():
-    source = XML_LAST.read_text(encoding="utf-8")
-    on_section = _function(source, "onSection")
-
-    assert "currentSection.getType()" in on_section
-    assert "currentSection.type=" in on_section
-    assert "operation:isTurningStrategy" not in on_section
-
-
 def test_cycle_parameters_remain_float_for_xml_importer_contract():
     source = XML_LAST.read_text(encoding="utf-8")
     on_cycle = _function(source, "onCycle")

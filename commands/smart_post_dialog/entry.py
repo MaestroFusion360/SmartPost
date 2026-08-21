@@ -116,6 +116,13 @@ def as_bool(value):
     return bool(value)
 
 
+def is_cps_postprocessor(file_path):
+    """Return whether a path points to an existing Fusion CPS postprocessor."""
+    return bool(file_path) and os.path.isfile(file_path) and file_path.lower().endswith(
+        ".cps"
+    )
+
+
 def get_personal_xml_post(use_old_xml):
     """Select the intermediate CPS used only by the Personal workflow."""
     return OLD_XML_POST_FILE if as_bool(use_old_xml) else XML_POST_FILE
@@ -575,7 +582,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     POST_PATH = os.path.join(config_value("POST_FOLDER"), post_name)
 
     # Validate post processor exists
-    if not post_name.strip() or not os.path.exists(POST_PATH):
+    if not post_name.strip() or not is_cps_postprocessor(POST_PATH):
         inputs.itemById("post_name_input").value = ""
         POST_PATH = ""
         config_value("POST_NAME", "")
@@ -620,6 +627,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         # Set file dialog properties
         file_dlg = ui.createFileDialog()
         file_dlg.title = "Select Postprocessor"
+        file_dlg.filter = "Fusion Post Processor (*.cps)"
         file_dlg.initialDirectory = os.path.abspath(config_value("POST_FOLDER"))
 
         # Show dialog and process result
@@ -641,6 +649,10 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
                 futil.log(
                     "Post processor not found and resetting to default: {POST_PATH}"
                 )
+                return
+
+            if not is_cps_postprocessor(file_path):
+                show_message("Select a Fusion postprocessor file with the .cps extension.")
                 return
 
             # Update UI and configuration
@@ -841,8 +853,8 @@ def collect_processing_parameters(inputs):
             "tolerance_value": get_input_value(inputs, "tolerance_input", "Tolerance"),
         }
 
-        if not os.path.exists(params["post_path"]):
-            show_message("Invalid post processor path")
+        if not is_cps_postprocessor(params["post_path"]):
+            show_message("Invalid postprocessor path: select an existing .cps file")
             return None
 
         return params

@@ -27,8 +27,9 @@
 - [Installation \& Usage](#installation--usage)
   - [Configuration](#configuration)
 - [Roadmap](#roadmap)
-  - [**Q4 2026**](#q4-2026)
-    - [**Q1 2027**](#q1-2027)
+  - [Q4 2026](#q4-2026)
+    - [Postprocessor Enhancements](#postprocessor-enhancements)
+  - [Q1 2027](#q1-2027)
 - [XML cycle tests](#xml-cycle-tests)
 - [License \& Disclaimer](#license--disclaimer)
   - [Contact Me](#contact-me)
@@ -92,6 +93,16 @@
    sections are not restored as turning sections. These limitations do not
    affect the verified drilling-cycle round-trip.
 
+4. **Section type diagnostics**: `xml_last.cps` provides the optional
+   `diagnosticSectionType` property. When enabled, it logs the source
+   `currentSection.type` received from Fusion without adding diagnostic records
+   to the XML. The property is disabled by default and can be enabled for a
+   direct `post.exe` run with:
+
+   ```text
+   --property diagnosticSectionType true
+   ```
+
 ---
 
 ## Technical Constraints\*\*
@@ -114,6 +125,44 @@
      B --> C(post.exe + any .cps post)
      C --> D((G-code))
    ```
+
+### Downstream post compatibility and performance
+
+SmartPost can run any selected `.cps`, but every downstream post receives
+sections reconstructed by the Autodesk XML importer rather than native Fusion
+sections. Post implementations that repeatedly call
+`Section.getProperty()` or `Section.getParameter()` can therefore be much
+slower through SmartPost, even when the same post processes native CNC
+intermediate data quickly.
+
+This limitation is not specific to Fanuc and can affect any downstream post
+that uses section-scoped property or parameter lookup. A confirmed example with
+Autodesk Post Engine 5.388.0 is the Autodesk Fanuc revision 44236:
+
+```text
+Old Fanuc revision + XML:                         0.295 s
+New Fanuc revision + XML:                        29.897 s
+New Fanuc with old initializeSmoothing + XML:     0.188 s
+New Fanuc revision + native CNC intermediate:     1.187 s
+```
+
+The regression is caused by the newer `initializeSmoothing(_section)` using
+`_section.getProperty()` and `_section.getParameter()`. Passing
+`--property useSmoothing -1` does not avoid those lookups. Options such as
+`--noprogress`, `--quiet`, `--nointeraction`, `--noworkmapping`, and `--format`
+do not fix the XML-section performance issue.
+
+Recommended workarounds:
+
+1. Use a previous compatible revision of the selected post until its vendor
+   fixes XML-imported Section access.
+2. Post authors can use global `getProperty()` / `getParameter()` when the
+   intended target is `currentSection`, after verifying behavior for native and
+   XML intermediate inputs.
+3. Compare both paths with the same toolpath before upgrading a production
+   post. The diagnostic script is `tmp/test-fanuc-performance.py`.
+
+SmartPost never modifies or temporarily patches a user-selected `.cps`.
 
 ---
 
@@ -161,21 +210,26 @@ SmartPost default settings are in the `config.py` file:
 
 ## Roadmap
 
-Planned improvements for future releases:
+Planned improvements for future releases.
 
-### **Q4 2026**
+### Q4 2026
 
-**Postprocessor Enhancements**
-Improve support for the intermediate XML format, including:
+#### Postprocessor Enhancements
+
+Improve support for the intermediate XML workflow, including:
 
 - 2D turning operations
 - Manual NC code insertion
 
-#### **Q1 2027**
+> **Current limitation:** Autodesk Post Engine 5.388.0 does not preserve `Section.type` when processing the intermediate XML format. The XML importer does not parse attributes on `<section>`, so turning sections are reconstructed as the default `TYPE_MILLING`.
+>
+> As a result, proper turning support cannot be implemented in `xml_last.cps` alone.
 
-Extend the list of configurable parameters for the postprocessor
+### Q1 2027
 
-**Community contributions welcome!** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+- Extend the list of configurable postprocessor parameters
+
+**Community contributions are welcome.** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 **Found a bug?** [Open an Issue](https://github.com/MaestroFusion360/SmartPost/issues)
 

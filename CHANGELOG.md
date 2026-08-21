@@ -4,7 +4,7 @@ All notable changes to SmartPost are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.0.0] - 2026-08-21
+## [1.2.0.0] - 2026-08-21
 
 ### Added
 
@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added pytest regression coverage for Personal XML post selection, persisted
   booleans, Fusion output-unit mapping, XML merging, tool metadata, and grouped
   canned-cycle serialization.
+- Added the optional `diagnosticSectionType` property to `xml_last.cps` for
+  logging the source `currentSection.type` without modifying intermediate XML.
+- Added a reproducible `test-xml-section-type.ps1` test for comparing turning
+  CNC and XML imports through unchanged diagnostic and turning posts.
 
 ### Changed
 
@@ -36,6 +40,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Restricted postprocessor selection and persisted-path validation to existing
+  `.cps` files, preventing archives and unrelated files from reaching Fusion or
+  Autodesk `post.exe`.
+- Removed XML 1.0-forbidden control characters from values serialized by both
+  intermediate CPS variants, preventing corrupted Fusion parameters from
+  causing `post.exe` load failures or stalls.
 - Fixed tool metadata in `xml_last.cps` so downstream posts receive the actual
   Fusion tool type instead of `unspecified` / `UNKNOWN TOOL TYPE`.
 - Fixed `xml_last.cps` parameter serialization for vector and array values used
@@ -57,5 +67,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   postprocessing without deleting unrelated user files.
 - Fixed merged XML validation incorrectly treating a small buffered output file
   as empty before the file stream was flushed or closed.
+- Separated actual `post.exe` timing from total batch-processing time.
 - Fixed Python lint violations reported by Ruff and Pylint.
 - Fixed Markdown table alignment warnings in the README.
+
+### Known Limitations
+
+- Any downstream `.cps` may exhibit severe performance degradation when it
+  repeatedly calls `Section.getProperty()` or `Section.getParameter()` on
+  sections reconstructed by the Autodesk XML importer. With Post Engine
+  5.388.0, Autodesk Fanuc revision 44236 took about 30 seconds for the XML
+  fixture versus less than one second after substituting its older
+  `initializeSmoothing` implementation. No `post.exe` command-line option
+  bypasses these section-scoped lookups; use a compatible post revision or a
+  vendor-provided fix. SmartPost does not patch user-selected posts.
+- Autodesk Post Engine 5.388.0 does not serialize or restore `Section.type`
+  through its intermediate XML format. The XML importer does not parse
+  attributes on `<section>`, so turning sections are reconstructed as the
+  default `TYPE_MILLING`. This cannot be fixed in `xml_last.cps` alone.
+- Manual NC is only partially represented by the Autodesk XML format. Comments
+  and dwell records have supported XML elements, while Stop, Optional Stop, and
+  Pass-through do not have a verified round-trip representation. An
+  intermediate program containing only Manual NC records is rejected because
+  the XML importer requires at least one section.
