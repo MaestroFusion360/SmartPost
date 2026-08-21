@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 
 import adsk.cam
@@ -58,8 +59,10 @@ BUTTON_ICON = os.path.join(
 # Path to the postprocessor
 POST_PATH = ""
 
-# Default xml postprocessor path
-XML_POST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "xml.cps")
+# Personal-mode intermediate postprocessors.  Keep the former SmartPost post as
+# an explicit fallback while using the current Autodesk-derived post by default.
+XML_POST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "xml_last.cps")
+OLD_XML_POST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "xml.cps")
 
 # List of available options for high feedrate mapping behavior
 HIGH_FEED_MAPPING_ITEMS = [
@@ -100,6 +103,18 @@ def do_events():
         args = []
         args.append(0)
         do_events_fn(*args)
+
+
+def as_bool(value):
+    """Convert persisted JSON/default values without treating "false" as true."""
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def get_personal_xml_post(use_old_xml):
+    """Select the intermediate CPS used only by the Personal workflow."""
+    return OLD_XML_POST_FILE if as_bool(use_old_xml) else XML_POST_FILE
 
 
 
@@ -155,6 +170,7 @@ def load_config():
             return json.load(f)
     return {
         "PERSONAL_LICENSE": config.DEFAULT_PERSONAL_LICENSE,
+        "OLD_XML": config.DEFAULT_OLD_XML,
         "PROGRAM_NAME": config.DEFAULT_PROGRAM_NAME,
         "PROGRAM_NUMBER": config.DEFAULT_PROGRAM_NUMBER,
         "COMMENT": config.DEFAULT_COMMENT,
@@ -236,6 +252,7 @@ def save_command_configuration(inputs):
         # Map UI input IDs to configuration keys
         config_mapping = {
             "personal_input": "PERSONAL_LICENSE",
+            "old_xml_input": "OLD_XML",
             "program_name_input": "PROGRAM_NAME",
             "program_number_input": "PROGRAM_NUMBER",
             "comment_input": "COMMENT",
@@ -375,13 +392,21 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         return
 
     # Add personal license checkbox input
-    inputs.addBoolValueInput(
+    personal_input = inputs.addBoolValueInput(
         "personal_input",
         "License Personal (Testing)",
         True,
         "",
-        bool(config_value("PERSONAL_LICENSE")),
+        as_bool(config_value("PERSONAL_LICENSE")),
     )
+    old_xml_input = inputs.addBoolValueInput(
+        "old_xml_input",
+        "Old xml.cps",
+        True,
+        "",
+        as_bool(config_value("OLD_XML")),
+    )
+    old_xml_input.isEnabled = personal_input.value
 
     # Create dropdown for setup selection
     setups_combo = inputs.addDropDownCommandInput(
@@ -449,7 +474,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         "Open NC file in Editor",
         True,
         "",
-        bool(config_value("IS_OPEN_IN_EDITOR")),
+        as_bool(config_value("IS_OPEN_IN_EDITOR")),
     )
 
     # Create a collapsible group for built-in post parameters
@@ -464,7 +489,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         "Allow Helical Moves",
         True,
         "",
-        bool(config_value("ALLOW_HELICAL_MOVES")),
+        as_bool(config_value("ALLOW_HELICAL_MOVES")),
     )
 
     # Add feedrate mapping dropdown
@@ -581,6 +606,9 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
     """Handles changes in input fields within the command dialog."""
     changed_input = args.input
     inputs = args.inputs
+
+    if changed_input.id == "personal_input":
+        inputs.itemById("old_xml_input").isEnabled = bool(changed_input.value)
 
     # Handle postprocessor selection button click
     if changed_input.id == "select_post_button":
@@ -733,6 +761,7 @@ def setup_logging(log_file):
         level=mode,
         format="%(asctime)s - %(levelname)s - %(message)s",
         filemode="w",
+        force=True,
     )
 
 
@@ -772,6 +801,7 @@ def collect_processing_parameters(inputs):
         # Create a dictionary params
         params = {
             "personal_license": get_input_value(inputs, "personal_input", "License"),
+            "old_xml": get_input_value(inputs, "old_xml_input", "Old xml.cps"),
             "program_name": get_input_value(
                 inputs, "program_name_input", "Program Name"
             ),
@@ -861,6 +891,7 @@ def execute_personal_workflow(cam, operations, params):
         "maximumCircularRadius": max_circ_radius,
         "minimumCircularRadius": min_circ_radius,
         "tolerance": tolerance,
+        "old_xml": params["old_xml"],
     }
 
     futil.log("Post-processing parameters prepared")
@@ -1009,8 +1040,15 @@ def batch_post(cam, operations, **post_params):
 
     # Validate critical paths
     missing_files = []
-    if not os.path.exists(XML_POST_FILE):
-        missing_files.append(normalize_path(XML_POST_FILE))
+    xml_post_file = get_personal_xml_post(post_params.get("old_xml", False))
+    xml_post_mode = "legacy" if as_bool(post_params.get("old_xml", False)) else "current"
+    futil.log(
+        f"Personal intermediate post ({xml_post_mode}): "
+        f"{normalize_path(xml_post_file)}",
+        force_console=True,
+    )
+    if not os.path.exists(xml_post_file):
+        missing_files.append(normalize_path(xml_post_file))
 
     post_exe_path = find_fusion_post_exe()
     if not post_exe_path:
@@ -1039,9 +1077,22 @@ def batch_post(cam, operations, **post_params):
     futil.log(f"Post processor path: {post_processor}")
     futil.log(f"Unit: {unit}")
 
-    # Setup logging
-    log_path = normalize_path(os.path.join(output_folder, f"{program_name}.log"))
-    progress_path = normalize_path(os.path.join(output_folder, "progress.tmp"))
+    # Isolate every intermediate artifact so cleanup can never remove or
+    # overwrite a user's existing XML/log/backup files.
+    os.makedirs(output_folder, exist_ok=True)
+    work_folder = tempfile.mkdtemp(
+        prefix=f".{program_name}_smartpost_", dir=output_folder
+    )
+    log_fd, log_path = tempfile.mkstemp(
+        prefix="post_", suffix=".log", dir=work_folder
+    )
+    os.close(log_fd)
+    progress_fd, progress_path = tempfile.mkstemp(
+        prefix="progress_", suffix=".tmp", dir=work_folder
+    )
+    os.close(progress_fd)
+    log_path = normalize_path(log_path)
+    progress_path = normalize_path(progress_path)
     setup_logging(progress_path)
 
     try:
@@ -1057,8 +1108,8 @@ def batch_post(cam, operations, **post_params):
             cam,
             operations,
             program_name,
-            XML_POST_FILE,
-            output_folder,
+            xml_post_file,
+            work_folder,
             unit,
             post_params,
         )
@@ -1072,7 +1123,7 @@ def batch_post(cam, operations, **post_params):
         time.sleep(0.05)
 
         merged_xml = normalize_path(
-            os.path.join(output_folder, f"{program_name}_merged.xml")
+            os.path.join(work_folder, f"{program_name}_merged.xml")
         )
 
         try:
@@ -1124,6 +1175,40 @@ def batch_post(cam, operations, **post_params):
         futil.log(f"Batch Post error:\n{str(e)}", force_console=True)
         show_message(f"Batch Post error:\n{str(e)}")
         return False
+    finally:
+        # Only remove files whose unique names were created by this invocation.
+        logging.shutdown()
+        for temporary_path in (log_path, progress_path):
+            try:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+                    futil.log(f"Removed SmartPost temporary file: {temporary_path}")
+            except OSError as cleanup_error:
+                futil.log(
+                    f"Warning: could not remove {temporary_path}: {cleanup_error}",
+                    force_console=True,
+                )
+        resolved_output = os.path.realpath(output_folder)
+        resolved_work = os.path.realpath(work_folder)
+        is_own_work_folder = (
+            os.path.commonpath((resolved_output, resolved_work)) == resolved_output
+            and os.path.dirname(resolved_work) == resolved_output
+            and os.path.basename(resolved_work).startswith(f".{program_name}_smartpost_")
+        )
+        if is_own_work_folder:
+            try:
+                shutil.rmtree(resolved_work)
+            except OSError as cleanup_error:
+                futil.log(
+                    f"Warning: could not remove SmartPost work folder "
+                    f"{resolved_work}: {cleanup_error}",
+                    force_console=True,
+                )
+        else:
+            futil.log(
+                f"Refusing to remove unexpected work folder: {resolved_work}",
+                force_console=True,
+            )
 
 
 def merge_xml_files(file_paths, output_file):
@@ -1219,6 +1304,13 @@ def process_operations(
     cam, operations, program_name, post_processor, output_folder, unit, post_params
 ):
     """Process individual operations to numbered XML files with optimized object creation"""
+    output_units = {
+        0: adsk.cam.PostOutputUnitOptions.InchesOutput,
+        1: adsk.cam.PostOutputUnitOptions.MillimetersOutput,
+    }.get(unit)
+    if output_units is None:
+        raise ValueError(f"Unsupported resolved output unit: {unit}")
+
     # Batch logging initialization
     futil.log("===============================", force_console=True)
     futil.log("=== Starting XML generation ===", force_console=True)
@@ -1260,7 +1352,7 @@ def process_operations(
         try:
             # Create PostProcessInput
             post_input = adsk.cam.PostProcessInput.create(
-                numbered_name, post_processor, output_folder, unit
+                numbered_name, post_processor, output_folder, output_units
             )
             post_input.isOpenInEditor = False
 
@@ -1315,6 +1407,7 @@ def generate_gcode(
         f'"{normalize_path(post_exe_path)}"',
         "--log",
         f'"{normalize_path(log_path)}"',
+        "--nobackup",
         "--allowui",
         "--sandbox",
         "--lang",

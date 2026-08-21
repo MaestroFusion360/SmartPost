@@ -10,6 +10,7 @@ ADDIN_NAME = os.path.basename(os.path.dirname(__file__))
 
 COMPANY_NAME = ""
 DEFAULT_PERSONAL_LICENSE = "false"
+DEFAULT_OLD_XML = "false"
 DEFAULT_PROGRAM_NAME = "1001"
 DEFAULT_PROGRAM_NUMBER = "1001"
 DEFAULT_COMMENT = ""

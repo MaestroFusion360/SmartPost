@@ -6,16 +6,18 @@ from . import commands
 from .lib import fusionAddInUtils as futil
 
 
-def run(context):
+def run(_context):
+    """Start the Fusion add-in."""
     try:
         commands.start()
-    except:
+    except Exception:
         futil.handle_error("run")
 
 
-def stop(context):
+def stop(_context):
+    """Stop the Fusion add-in."""
     try:
         futil.clear_handlers()
         commands.stop()
-    except:
+    except Exception:
         futil.handle_error("stop")

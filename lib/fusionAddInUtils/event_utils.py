@@ -40,12 +40,12 @@ def add_handler(
                       This argument must be specified by its keyword. If not
                       specified the handler is added to a global list and can
                       be cleared using the clear_handlers function. You may want
-                      to maintain your own handler list so it can be managed 
+                      to maintain your own handler list so it can be managed
                       independently for each command.
 
     :returns:
         The event handler that was created.  You don't often need this reference, but it can be useful in some cases.
-    """   
+    """
     module = sys.modules[event.__module__]
     handler_type = module.__dict__[event.add.__annotations__['handler']]
     handler = _create_handler(handler_type, callback, event, name, local_handlers)
@@ -63,7 +63,7 @@ def clear_handlers():
 def _create_handler(
         handler_type,
         callback: Callable,
-        event: adsk.core.Event,
+        _event: adsk.core.Event,
         name: str = None,
         local_handlers: list = None
 ):
@@ -76,13 +76,10 @@ def _define_handler(handler_type, callback, name: str = None):
     name = name or handler_type.__name__
 
     class Handler(handler_type):
-        def __init__(self):
-            super().__init__()
-
         def notify(self, args):
             try:
                 callback(args)
-            except:
+            except Exception:
                 handle_error(name)
 
     return Handler

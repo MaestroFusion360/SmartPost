@@ -29,6 +29,7 @@
 - [Roadmap](#roadmap)
   - [**Q4 2026**](#q4-2026)
     - [**Q1 2027**](#q1-2027)
+- [XML cycle tests](#xml-cycle-tests)
 - [License \& Disclaimer](#license--disclaimer)
   - [Contact Me](#contact-me)
 
@@ -59,17 +60,17 @@
 
 ## Key Features
 
-| Feature                | Commercial      | Personal                       |
-| ---------------------- | --------------- | ------------------------------ |
-| Automatic Tool Changes | ✅ Full support | ✅ Unlimited tools             |
-| 3 axis milling         | ✅ Full support | ✅ Any `.cps` compatible       |
-| **User comments**      | ✅ Full support | ⚠️ Only program-level comments |
-| **Drilling Cycles**    | ✅ Full support | ⚠️ Expanding cycles (G0/G1)\*  |
-| **2 axis turning**     | ✅ Full support | ❌ Not supported yet           |
-| **Manual NC**          | ✅ Full support | ❌ Not supported yet           |
-| **Rapid moves**        | ✅ Full support | ❌ Not supported yet           |
-| **Probing**            | ✅ Full support | ❌ Not supported yet           |
-| **3+2 axis milling**   | ✅ Full support | ❌ Not supported yet           |
+| Feature | Commercial | Personal |
+| --- | --- | --- |
+| Automatic Tool Changes | ✅ Full support | ✅ Unlimited tools |
+| 3 axis milling | ✅ Full support | ✅ Any `.cps` compatible |
+| **User comments** | ✅ Full support | ⚠️ Only program-level comments |
+| **Drilling Cycles** | ✅ Full support | ✅ Canned cycles through the selected `.cps` |
+| **2 axis turning** | ✅ Full support | ❌ Not supported yet |
+| **Manual NC** | ✅ Full support | ❌ Not supported yet |
+| **Rapid moves** | ✅ Full support | ⚠️ Preserved when exposed by Fusion as rapid |
+| **Probing** | ✅ Full support | ❌ Not supported yet |
+| **3+2 axis milling** | ✅ Full support | ❌ Not supported yet |
 
 ### Notes
 
@@ -79,10 +80,17 @@
    - ⚠️: Partially supported (with limitations)
    - ❌: Not supported yet
 
-2. **Expanding cycles (G0/G1)**: Uses basic linear moves instead of canned cycles for drilling operations.
+2. **Canned drilling cycles**: The current `xml_last.cps` preserves grouped
+   cycle data through the Autodesk XML importer. Standard downstream posts can
+   generate native cycles such as G81, G83, G84, G86, and G87 when supported by
+   the selected postprocessor. The legacy `xml.cps` remains available for
+   compatibility and expands cycles into basic moves.
 
 3. **Limitations in Fusion 360 XML Post-Processing**:
-   Due to restrictions in Fusion 360's XML post-processing framework (**`xml.cps`**), the following features are **not supported** in this release.
+   Autodesk Post Engine 5.388.0 still fails to import grouped
+   `circular-pocket-milling` and `thread-milling` operations, and turning
+   sections are not restored as turning sections. These limitations do not
+   affect the verified drilling-cycle round-trip.
 
 ---
 
@@ -161,8 +169,8 @@ Planned improvements for future releases:
 Improve support for the intermediate XML format, including:
 
 - 2D turning operations
-- Drill cycles
 - Manual NC code insertion
+
 
 #### **Q1 2027**
 
@@ -171,6 +179,16 @@ Extend the list of configurable parameters for the postprocessor
 **Community contributions welcome!** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 **Found a bug?** [Open an Issue](https://github.com/MaestroFusion360/SmartPost/issues)
+
+---
+
+## XML cycle tests
+
+The PowerShell scripts in [`scripts`](scripts) exercise the complete XML
+round-trip without modifying the selected downstream `.cps` file. They can test
+both `xml_last.cps` and the legacy `xml.cps` against Autodesk Post Utility
+`.cnc` datasets. See [`scripts/README.md`](scripts/README.md) for commands and
+expected output.
 
 ---
 

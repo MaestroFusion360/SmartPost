@@ -1,0 +1,40 @@
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Keep the first adoption intentionally small: pycodestyle errors and Pyflakes.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"lib/fusionAddInUtils/__init__.py" = ["F403"]
+
+[tool.ruff.format]
+# These legacy files are not Ruff-formatted yet. Keep the initial Ruff setup
+# focused and avoid a repository-wide formatting diff.
+exclude = [
+    "commands/__init__.py",
+    "commands/smart_post_dialog/entry.py",
+    "config.py",
+    "lib/fusionAddInUtils/event_utils.py",
+    "lib/fusionAddInUtils/general_utils.py",
+]
+
+[tool.pylint.main]
+# Fusion loads this add-in as a package and provides `adsk` dynamically. The
+# standalone analyzer cannot reliably resolve either interface.
+disable = [
+    "broad-exception-caught",
+    "global-statement",
+    "invalid-name",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "mixed-line-endings",
+    "no-name-in-module",
+    "no-value-for-parameter",
+    "relative-beyond-top-level",
+    "too-few-public-methods",
+]
+
+[tool.pylint.format]
+max-line-length = 120
